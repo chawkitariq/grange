@@ -1,0 +1,41 @@
+name: SageMaker Inference
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'sagemaker/inference/**'
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_VERSION: 1.12
+
+jobs:
+  build-and-push:
+    name: Build and Push Inference Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: ./github/actions/init-action.yml
+
+      - name: Recover Terraform Outputs
+        run: |
+          echo "ECR_INFERENCE_REPOSITORY_IMAGE_NAME=$(terraform output -raw ecr_inference_repository_name)" >> $GITHUB_ENV
+
+      - name: Build and push inference image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_INFERENCE_REPOSITORY_IMAGE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: sagemaker/inference
+        run: |
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+

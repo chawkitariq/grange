@@ -1,0 +1,61 @@
+name: SageMaker Training
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "sagemaker/train/**"
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_VERSION: 1.12
+
+jobs:
+  build-and-push:
+    name: Build and Push Training Image
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: ./github/actions/init-action.yml
+
+      - name: Recover Terraform Outputs
+        run: |
+          echo "ECR_TRAINING_REPOSITORY_IMAGE_NAME=$(terraform output -raw ecr_training_repository_name)" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push training image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_TRAINING_REPOSITORY_IMAGE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: sagemaker/train
+        run: |
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  run-pipeline:
+    name: Run SageMaker Pipeline
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: ./github/actions/init-action.yml
+
+      - name: Recover Terraform Outputs
+        run: |
+          echo "SAGEMAKER_PIPELINE_NAME=$(terraform output -raw sagemaker_pipeline_name)" >> $GITHUB_ENV
+
+      - name: Run pipeline
+        run: aws sagemaker start-pipeline-execution --pipeline-name ${{ env.SAGEMAKER_PIPELINE_NAME }}
