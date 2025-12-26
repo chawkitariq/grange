@@ -21,15 +21,3 @@ variable "training_instance_type" {
   type        = string
   default     = "ml.m5.large"
 }
-
-variable "sagemaker_endpoint_name" {
-  description = "Name of the SageMaker endpoint"
-  type        = string
-  default     = "grange-endpoint"
-}
-
-variable "sagemaker_model_name" {
-  description = "Name of the SageMaker model"
-  type        = string
-  default     = "grange-model"
-}

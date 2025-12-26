@@ -71,9 +71,21 @@ resource "aws_iam_role_policy" "sagemaker_execution" {
           "sagemaker:UpdateEndpoint",
           "sagemaker:CreateModelPackage",
           "sagemaker:DescribeModelPackage",
-          "sagemaker:UpdateModelPackage"
+          "sagemaker:UpdateModelPackage",
+          "sagemaker:AddTags",
+          "sagemaker:CreateTrainingJob"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = aws_iam_role.sagemaker_execution.arn,
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "sagemaker.amazonaws.com"
+          }
+        }
       }
     ]
   })
@@ -125,3 +137,65 @@ resource "aws_iam_role_policy" "lambda_execution" {
   })
 }
 
+
+# Lambda IAM Role
+resource "aws_iam_role" "lambda_deploy" {
+  name = "${local.name_prefix}-lambda-deploy-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Lambda IAM Policy
+resource "aws_iam_role_policy" "lambda_deploy_policy" {
+  name = "${local.name_prefix}-lambda-deploy-policy"
+  role = aws_iam_role.lambda_deploy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sagemaker:CreateEndpointConfig",
+          "sagemaker:CreateEndpoint",
+          "sagemaker:UpdateEndpoint",
+          "sagemaker:DescribeEndpoint",
+          "sagemaker:DescribeEndpointConfig",
+          "sagemaker:DescribeModel",
+          "sagemaker:DeleteEndpointConfig",
+          "sagemaker:ListEndpointConfigs",
+          "sagemaker:SendPipelineExecutionStepSuccess",
+          "sagemaker:SendPipelineExecutionStepFailure"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:PassRole"
+        ]
+        Resource = aws_iam_role.sagemaker_execution.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}

@@ -2,20 +2,7 @@
 resource "aws_ecr_repository" "training" {
   name                 = "${var.project_name}-training"
   image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-}
-
-# ECR Repository for Inference Image
-resource "aws_ecr_repository" "inference" {
-  name                 = "${var.project_name}-inference"
-  image_tag_mutability = "MUTABLE"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -46,6 +33,21 @@ resource "aws_ecr_lifecycle_policy" "training" {
       }
     ]
   })
+}
+
+# ECR Repository for Inference Image
+resource "aws_ecr_repository" "inference" {
+  name                 = "${var.project_name}-inference"
+  image_tag_mutability = "MUTABLE"
+  force_delete = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
 }
 
 # ECR Lifecycle Policy for Inference Images

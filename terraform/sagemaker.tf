@@ -1,19 +1,7 @@
-# resource "aws_sagemaker_endpoint_configuration" "grange_serverless" {
-#   name = "${local.name_prefix}-serverless-config"
-#   production_variants {
-#     variant_name = "AllTraffic"
-#     model_name   = "${local.name_prefix}-model"
-#     serverless_config {
-#       memory_size_in_mb = 2048
-#       max_concurrency   = 10
-#     }
-#   }
-# }
-
-# resource "aws_sagemaker_endpoint" "grange" {
-#   name                 = "${local.name_prefix}-endpoint"
-#   endpoint_config_name = aws_sagemaker_endpoint_configuration.grange_serverless.name
-# }
+resource "aws_sagemaker_model_package_group" "grange" {
+  model_package_group_name        = "${local.name_prefix}-model-group"
+  model_package_group_description = "Model package group for ${var.project_name}"
+}
 
 resource "aws_sagemaker_pipeline" "grange" {
   pipeline_name         = "${local.name_prefix}-pipeline"
@@ -23,13 +11,7 @@ resource "aws_sagemaker_pipeline" "grange" {
 
   pipeline_definition = jsonencode({
     Version = "2020-12-01"
-    Parameters = [
-      {
-        Name         = "ModelApprovalStatus"
-        Type         = "String"
-        DefaultValue = "PendingManualApproval"
-      }
-    ]
+
     Steps = [
       {
         Name = "TrainModel"
@@ -66,11 +48,34 @@ resource "aws_sagemaker_pipeline" "grange" {
           }
         }
       },
+
+      {
+        Name      = "RegisterModel"
+        Type      = "RegisterModel"
+        DependsOn = ["TrainModel"]
+        Arguments = {
+          ModelPackageGroupName = aws_sagemaker_model_package_group.grange.model_package_group_name
+          ModelApprovalStatus   = "Approved"
+          InferenceSpecification = {
+            Containers = [
+              {
+                Image = "${aws_ecr_repository.inference.repository_url}:latest"
+                ModelDataUrl = {
+                  "Get" = "Steps.TrainModel.ModelArtifacts.S3ModelArtifacts"
+                }
+              }
+            ]
+            SupportedContentTypes      = ["text/csv"]
+            SupportedResponseMIMETypes = ["application/json"]
+          }
+        }
+      },
+
       {
         Name      = "CreateModel"
         Type      = "Model"
+        DependsOn = ["RegisterModel"]
         Arguments = {
-          ModelName        = var.sagemaker_model_name
           ExecutionRoleArn = aws_iam_role.sagemaker_execution.arn
           PrimaryContainer = {
             Image = "${aws_ecr_repository.inference.repository_url}:latest"
@@ -79,7 +84,25 @@ resource "aws_sagemaker_pipeline" "grange" {
             }
           }
         }
+      },
+
+      {
+        Name        = "DeployEndpoint"
+        Type        = "Lambda"
+        DependsOn   = ["CreateModel"]
+        FunctionArn = aws_lambda_function.deploy_endpoint.arn
+        Arguments = {
+          "ModelName" : {
+            "Get" : "Steps.CreateModel.ModelName"
+          },
+          "EndpointName" : local.sagemaker_endpoint_name,
+        }
       }
     ]
   })
+
+  depends_on = [
+    aws_sagemaker_model_package_group.grange,
+    aws_lambda_function.deploy_endpoint
+  ]
 }

@@ -42,20 +42,3 @@ jobs:
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-  run-pipeline:
-    name: Run SageMaker Pipeline
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: ./github/actions/init-action.yml
-
-      - name: Recover Terraform Outputs
-        run: |
-          echo "SAGEMAKER_PIPELINE_NAME=$(terraform output -raw sagemaker_pipeline_name)" >> $GITHUB_ENV
-
-      - name: Run pipeline
-        run: aws sagemaker start-pipeline-execution --pipeline-name ${{ env.SAGEMAKER_PIPELINE_NAME }}

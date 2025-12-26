@@ -1,7 +1,7 @@
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../lambda/predict"
-  output_path = "${path.module}/../lambda/predict/lambda_function.zip"
+  source_dir  = "${path.module}/../lambdas/predict"
+  output_path = "${path.module}/../lambdas/predict/lambda_handler.zip"
 }
 
 resource "aws_lambda_function" "predict" {
@@ -15,7 +15,7 @@ resource "aws_lambda_function" "predict" {
 
   environment {
     variables = {
-      SAGEMAKER_ENDPOINT_NAME = var.sagemaker_endpoint_name
+      SAGEMAKER_ENDPOINT_NAME = local.sagemaker_endpoint_name
     }
   }
 
@@ -34,6 +34,19 @@ resource "aws_lambda_permission" "api_gateway" {
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
-# Note: The Lambda deployment package needs to be created separately
-# Run: cd lambda/predict && zip -r lambda_function.zip . && mv lambda_function.zip ../../terraform/
+# Lambda Function for Endpoint Deployment
+data "archive_file" "deploy_lambda" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/deploy"
+  output_path = "${path.module}/../lambdas/deploy/lambda_handler.zip"
+}
+
+resource "aws_lambda_function" "deploy_endpoint" {
+  filename      = data.archive_file.deploy_lambda.output_path
+  function_name = "${local.name_prefix}-deploy-endpoint"
+  role          = aws_iam_role.lambda_deploy.arn
+  handler       = "lambda_handler.lambda_handler"
+  runtime       = "python3.11"
+  timeout       = 900
+}
 
