@@ -8,6 +8,7 @@ import flask
 import joblib
 import pandas as pd
 import logging
+from marshmallow import Schema, fields, ValidationError
 
 app = flask.Flask(__name__)
 model = None
@@ -15,6 +16,16 @@ model_path = '/opt/ml/model/model.joblib'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class InstanceSchema(Schema):
+    diameter = fields.Float(required=True)
+    weight = fields.Float(required=True)
+    red = fields.Float(required=True)
+    green = fields.Float(required=True)
+    blue = fields.Float(required=True)
+
+class InputSchema(Schema):
+    instances = fields.List(fields.Nested(InstanceSchema), required=True)
 
 def load_model():
     """Load the model from the model directory"""
@@ -44,7 +55,11 @@ def ping():
 def invocations():
     """
     Inference endpoint - required by SageMaker.
-    Processes POST requests and returns predictions.
+    Expects strictly:  
+        {"instances": [
+            {"diameter": ..., "weight": ..., "red": ..., "green": ..., "blue": ...},
+            ...
+        ]}
     """
     if model is None:
         return flask.Response(
@@ -69,19 +84,18 @@ def invocations():
                 mimetype='application/json'
             )
         
-        if isinstance(input_json, dict):
-            if 'instances' in input_json:
-                data = pd.DataFrame(input_json['instances'])
-            else:
-                data = pd.DataFrame([input_json])
-        elif isinstance(input_json, list):
-            data = pd.DataFrame(input_json)
-        else:
+        schema = InputSchema()
+        try:
+            validated = schema.load(input_json)
+        except ValidationError as err:
+            logger.warning(f"Validation error: {err.messages}")
             return flask.Response(
-                response=json.dumps({'error': 'Unsupported JSON structure'}),
+                response=json.dumps({'error': 'Invalid input format', 'details': err.messages}),
                 status=400,
                 mimetype='application/json'
             )
+        
+        data = pd.DataFrame(validated['instances'])
         
         predictions = model.predict(data)
         result = {'predictions': predictions.tolist()}

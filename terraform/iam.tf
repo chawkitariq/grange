@@ -16,127 +16,36 @@ resource "aws_iam_role" "sagemaker_execution" {
   })
 }
 
-# IAM Policy for SageMaker to access S3 and ECR
-resource "aws_iam_role_policy" "sagemaker_execution" {
-  name = "${local.name_prefix}-sagemaker-execution-policy"
-  role = aws_iam_role.sagemaker_execution.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          aws_s3_bucket.ml_data.arn,
-          "${aws_s3_bucket.ml_data.arn}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "sagemaker:CreateModel",
-          "sagemaker:DescribeModel",
-          "sagemaker:DeleteModel",
-          "sagemaker:CreateEndpointConfig",
-          "sagemaker:DescribeEndpointConfig",
-          "sagemaker:DeleteEndpointConfig",
-          "sagemaker:CreateEndpoint",
-          "sagemaker:DescribeEndpoint",
-          "sagemaker:DeleteEndpoint",
-          "sagemaker:UpdateEndpoint",
-          "sagemaker:CreateModelPackage",
-          "sagemaker:DescribeModelPackage",
-          "sagemaker:UpdateModelPackage",
-          "sagemaker:AddTags",
-          "sagemaker:CreateTrainingJob"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow",
-        Action = "iam:PassRole",
-        Resource = aws_iam_role.sagemaker_execution.arn,
-        Condition = {
-          StringEquals = {
-            "iam:PassedToService" = "sagemaker.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
+# Attach AWS managed policies for SageMaker, S3, ECR, and CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "sagemaker_full_access" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
 }
 
-# IAM Role for Lambda Execution
-resource "aws_iam_role" "lambda_execution" {
-  name = "${local.name_prefix}-lambda-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
+resource "aws_iam_role_policy_attachment" "sagemaker_s3_access" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
-# IAM Policy for Lambda to invoke SageMaker endpoints
-resource "aws_iam_role_policy" "lambda_execution" {
-  name = "${local.name_prefix}-lambda-execution-policy"
-  role = aws_iam_role.lambda_execution.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sagemaker-runtime:InvokeEndpoint"
-        ]
-        Resource = "arn:aws:sagemaker:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:endpoint/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
-      }
-    ]
-  })
+resource "aws_iam_role_policy_attachment" "sagemaker_ecr_access" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+resource "aws_iam_role_policy_attachment" "sagemaker_logs_access" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "sagemaker_pipelines_integrations" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerPipelinesIntegrations"
+}
+
+resource "aws_iam_role_policy_attachment" "sagemaker_pipelines_lambda_execution" {
+  role       = aws_iam_role.sagemaker_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+}
 
 # Lambda IAM Role
 resource "aws_iam_role" "lambda_deploy" {
@@ -156,46 +65,47 @@ resource "aws_iam_role" "lambda_deploy" {
   })
 }
 
-# Lambda IAM Policy
-resource "aws_iam_role_policy" "lambda_deploy_policy" {
-  name = "${local.name_prefix}-lambda-deploy-policy"
-  role = aws_iam_role.lambda_deploy.id
+# Attach AWS managed policies for Lambda
+resource "aws_iam_role_policy_attachment" "sagemaker_lambda_access" {
+  role       = aws_iam_role.lambda_deploy.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sagemaker_access" {
+  role       = aws_iam_role.lambda_deploy.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+}
+
+# IAM role that API Gateway assumes to call SageMaker
+resource "aws_iam_role" "apigateway_sagemaker_role" {
+  name = "${local.name_prefix}-apigateway-sagemaker-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "apigateway_sagemaker_policy" {
+  role = aws_iam_role.apigateway_sagemaker_role.id
 
   policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sagemaker:CreateEndpointConfig",
-          "sagemaker:CreateEndpoint",
-          "sagemaker:UpdateEndpoint",
-          "sagemaker:DescribeEndpoint",
-          "sagemaker:DescribeEndpointConfig",
-          "sagemaker:DescribeModel",
-          "sagemaker:DeleteEndpointConfig",
-          "sagemaker:ListEndpointConfigs",
-          "sagemaker:SendPipelineExecutionStepSuccess",
-          "sagemaker:SendPipelineExecutionStepFailure"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:PassRole"
-        ]
-        Resource = aws_iam_role.sagemaker_execution.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
-      }
-    ]
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = "sagemaker:InvokeEndpoint",
+      Resource = "arn:aws:sagemaker:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:endpoint/${local.sagemaker_endpoint_name}"
+    }]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_logs" {
+  role       = aws_iam_role.apigateway_sagemaker_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
