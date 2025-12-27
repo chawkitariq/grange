@@ -1,13 +1,23 @@
-# Grange
+# Grange: Citrus Fruit Classification
 
-A simple machine learning project that classifies citrus fruits (oranges and grapefruits) based on their physical measurements using a Decision Tree classifier.
+An end-to-end machine learning project that classifies citrus fruits (oranges and grapefruits) based on their physical measurements using a Decision Tree classifier. The project includes infrastructure as code for deploying the model on AWS SageMaker with a serverless API endpoint.
 
 ## Features
 
-- Loads citrus fruit data from a CSV file
-- Trains a Decision Tree model to predict fruit type
-- Evaluates model accuracy on test data
-- Makes predictions on new fruit samples
+- **Machine Learning**
+  - Loads and preprocesses citrus fruit data
+  - Trains a Decision Tree classifier
+  - Evaluates model performance (94%+ accuracy)
+  - Makes predictions on new samples
+
+- **Infrastructure (AWS)**
+  - Automated model training pipeline with SageMaker
+  - Containerized training and inference
+  - Serverless API endpoint with API Gateway
+  - Lambda functions for model deployment
+  - IAM roles and policies
+  - S3 bucket for data storage and model artifacts
+  - ECR repositories for Docker images
 
 ## Dataset
 
@@ -15,48 +25,117 @@ The dataset (`citrus.csv`) contains the following columns:
 - `name`: Fruit type (orange or grapefruit)
 - `diameter`: Fruit diameter
 - `weight`: Fruit weight
-- `red`: Red color component (0-255)
-- `green`: Green color component (0-255)
-- `blue`: Blue color component (0-255)
+- `red`, `green`, `blue`: Color components (0-255)
 
-This dataset was downloaded from [Kaggle: Oranges vs Grapefruit](https://www.kaggle.com/datasets/joshmcadams/oranges-vs-grapefruit).
+Source: [Kaggle: Oranges vs Grapefruit](https://www.kaggle.com/datasets/joshmcadams/oranges-vs-grapefruit)
 
-## Installation
+## Prerequisites
+- Python 3.8+
+- AWS CLI configured with appropriate credentials
+- Terraform v1.0+
+- Docker
 
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Create a virtual environment:
+## Local Development
+
+### Setup
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd grange
    ```
-   python3 -m venv venv
+
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # OR
+   .\venv\Scripts\activate  # Windows
    ```
-4. Activate the virtual environment:
-   - On Linux/Mac: `source venv/bin/activate`
-   - On Windows: `venv\Scripts\activate`
-5. Install required packages:
-   ```
+
+3. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
 
-## Usage
+### Local Training
 
-Run the main script:
-```
-python3 main.py
+To train the model locally:
+```bash
+python main.py
 ```
 
 This will:
-- Train the model and show accuracy (around 94%)
-- Predict the type for an example fruit (diameter=3.0, weight=90, RGB=(170,80,5))
+- Load and preprocess the data
+- Train the model
+- Print the test accuracy
+- Make a sample prediction
 
-## Requirements
+## AWS Deployment
 
-- Python 3.x
-- pandas
-- scikit-learn
+The infrastructure is managed using Terraform. The deployment includes:
+- SageMaker training pipeline
+- Model endpoints
+- API Gateway
+- Lambda to deploy models
+- S3 buckets for data storage
+- IAM roles and policies
 
-## Output Example
+### Deploying to AWS
 
+1. Initialize Terraform:
+   ```bash
+   cd terraform
+   terraform init
+   ```
+
+2. Review the execution plan:
+   ```bash
+   terraform plan
+   ```
+
+3. Apply the configuration:
+   ```bash
+   terraform apply
+   ```
+
+## API Usage
+
+Once deployed, you can make predictions by sending a POST request to the API Gateway endpoint:
+
+```bash
+curl -X POST https://<api-gateway-url>/predict \
+  -H "Content-Type: application/json" \
+  -d '{"instances": [
+    {
+      "diameter": 11.0,
+      "weight": 120.5,
+      "red": 200,
+      "green": 150,
+      "blue": 100
+    },
+    {
+      "diameter": 3.8,
+      "weight": 80.2,
+      "red": 120,
+      "green": 180,
+      "blue": 220
+    }
+  ]
+}'
 ```
-Accuracy: 0.945
-Prediction: ['orange']
+
+## CI/CD
+
+The project includes GitHub Actions workflows for:
+- Automated testing
+- Container image building and pushing to ECR
+
+## Cleanup
+
+To destroy all AWS resources:
+
+```bash
+cd terraform
+terraform destroy
 ```
